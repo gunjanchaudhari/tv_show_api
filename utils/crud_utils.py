@@ -14,18 +14,23 @@ def import_show(name: str) -> Union[dict, Status]:
     try:
         result = requests.get(
             'https://api.tvmaze.com/search/shows?q={}'.format(name))
-        print(result)
+        print(result, "this is result")
         jsonResult = result.json()
+        # print(jsonResult)
+
         df = pd.DataFrame([jsonResult[0]['show']])
+        print(df)
+        df.rename(columns={'id': 'tvmaze_id'}, inplace=True)
+        print(df)
         df['last-update'] = datetime.datetime.now()
-        # write_in_sqlite(df, database_file, table_name)
-        fd = util.read_from_sqlite(database_file, table_name, name)
+        fd = util.write_in_sqlite(df, database_file, table_name)
+
         resp_dic = fd.loc[0]
-        href = request.host_url + "tv_shows/" + resp_dic['id']
-        parsed_json = ast.literal_eval(resp_dic['_links'])
-        del parsed_json['previousepisode']
-        resp = {'id': (resp_dic['id']), 'last-update': (resp_dic['last-update']),
+        href = request.host_url + "tv_shows/" + str(resp_dic['id'])
+        print(href)
+        resp = {'id': (resp_dic['id']), 'tv_maze_id': (resp_dic['tvmaze_id']), 'last-update': (resp_dic['last-update']),
                 '_links': {'self': {'href': href}}}
+        print(resp)
         return resp
     except Exception as e:
         util.debug_exception(e, suppress=True)
@@ -34,16 +39,19 @@ def import_show(name: str) -> Union[dict, Status]:
 
 def get_show(id: int) -> Union[dict, Status]:
     try:
-        fd = util.read_show(database_file, table_name, str(id))
+        count, fd = util.read_show(database_file, table_name, str(id))
         resp_dic = fd.loc[0]
         # print(resp, "this shit")
         href = request.host_url + "tv_shows/"
         # resp_dic = ast.literal_eval(resp)
-
-        resp_dic['_links'] = {'self': {'href': href+resp_dic['id']},
-                              'previous': {'href': href+str(int(resp_dic['id'])-1)},
-                              'next': {'href': href+str(int(resp_dic['id'])+1)}}
-
+        if int(resp_dic['id']) == 1:
+            resp_dic['_links'] = {'self': {'href': href+resp_dic['id']},
+                                  'previous': {'href': href+str(count)},
+                                  'next': {'href': href+str(int(resp_dic['id'])+1)}}
+        if int(resp_dic['id']) == count:
+            resp_dic['_links'] = {'self': {'href': href+resp_dic['id']},
+                                  'previous': {'href': href+str(int(resp_dic['id'])-1)},
+                                  'next': {'href': href+str(1)}}
         resp_dic['genres'] = ast.literal_eval(resp_dic['genres'])
         resp_dic['schedule'] = ast.literal_eval(resp_dic['schedule'])
         resp_dic['rating'] = ast.literal_eval(resp_dic['rating'])

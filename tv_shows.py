@@ -24,6 +24,7 @@ class Shows(Resource):
     @api.response(200, "Successfully imported TV show")
     @api.doc(params={"name": "Enter show name to be imported"})
     def post(self):
+        """Import an existing show """
 
         name = request.args.get("name")
         #name = args['name']
@@ -38,6 +39,7 @@ class Shows(Resource):
 class Show(Resource):
     @api.response(200, "Successfully imported TV show")
     def get(self, id):
+        """Retrieve a show with id"""
         ret_show = util.get_show(id)
         print(type(ret_show))
         if ret_show == Status.FAIL:
@@ -47,7 +49,7 @@ class Show(Resource):
 
     @api.response(200, "Successfully deleted show")
     def delete(self, id):
-        """Delete an existing stock row"""
+        """Delete an existing show row"""
 
         if util.del_show(id) == Status.SUCCESS:
             return {"message": "The tv show with id {} was removed from the database!".format(id), "id": id}, 200
