@@ -1,4 +1,5 @@
 from sre_constants import SUCCESS
+from hologram import dataclass
 import requests
 import pandas as pd
 import datetime
@@ -11,26 +12,19 @@ from utils.enums import Status
 
 
 def import_show(name: str) -> Union[dict, Status]:
+    """Import a show from the tvmaze API"""
     try:
         result = requests.get(
             'https://api.tvmaze.com/search/shows?q={}'.format(name))
-        print(result, "this is result")
         jsonResult = result.json()
-        # print(jsonResult)
-
         df = pd.DataFrame([jsonResult[0]['show']])
-        print(df)
         df.rename(columns={'id': 'tvmaze_id'}, inplace=True)
-        print(df)
         df['last-update'] = datetime.datetime.now()
         fd = util.write_in_sqlite(df, database_file, table_name)
-
         resp_dic = fd.loc[0]
         href = request.host_url + "tv_shows/" + str(resp_dic['id'])
-        print(href)
-        resp = {'id': (resp_dic['id']), 'tv_maze_id': (resp_dic['tvmaze_id']), 'last-update': (resp_dic['last-update']),
+        resp = {'id': (str(resp_dic['id'])), 'tv_maze_id': (resp_dic['tvmaze_id']), 'last-update': (resp_dic['last-update']),
                 '_links': {'self': {'href': href}}}
-        print(resp)
         return resp
     except Exception as e:
         util.debug_exception(e, suppress=True)
@@ -38,12 +32,11 @@ def import_show(name: str) -> Union[dict, Status]:
 
 
 def get_show(id: int) -> Union[dict, Status]:
+    """Get show from the database with the id"""
     try:
-        count, fd = util.read_show(database_file, table_name, str(id))
+        fd, count = util.read_show(database_file, table_name, str(id))
         resp_dic = fd.loc[0]
-        # print(resp, "this shit")
         href = request.host_url + "tv_shows/"
-        # resp_dic = ast.literal_eval(resp)
         if int(resp_dic['id']) == 1:
             resp_dic['_links'] = {'self': {'href': href+resp_dic['id']},
                                   'previous': {'href': href+str(count)},
@@ -60,13 +53,11 @@ def get_show(id: int) -> Union[dict, Status]:
         del resp_dic['dvdCountry']
         del resp_dic['externals']
         del resp_dic['image']
-        resp_dics = {'id': resp_dic['id'], 'url': resp_dic['url'], 'name': resp_dic['name'],
+        resp_dics = {'tvmaze_id': resp_dic['tvmaze_id'], 'url': resp_dic['url'], 'name': resp_dic['name'],
                      'language': resp_dic['language'], 'type': resp_dic['type'], 'genres': resp_dic['genres'],
                      'status': resp_dic['status'], 'runtime': resp_dic['runtime'], 'premiered': resp_dic['premiered'],
                      'schedule': resp_dic['schedule'], 'rating': resp_dic['rating'], 'network': resp_dic['network'],
                      'weight': resp_dic['weight'], '_links': resp_dic['_links']}
-        print(resp_dics)
-        print(type(resp_dics))
 
         return resp_dics
 
@@ -76,11 +67,32 @@ def get_show(id: int) -> Union[dict, Status]:
 
 
 def del_show(id: int) -> Status:
+    """Delete a show"""
     try:
-        print("im here")
-        ans = util.delete_show(database_file, table_name, str(id))
+        ans = util.delete_show(database_file, table_name, (id))
         return ans
 
+    except Exception as e:
+        util.debug_exception(e, suppress=True)
+        return Status.FAIL
+
+
+def change_fields(data: dict, id: int) -> Union[dict, Status]:
+    """Patch database with the given entries"""
+    try:
+        read, length = util.read_show(database_file, table_name, str(id))
+        show_read = read.to_dict()
+        for item in show_read:
+            show_read[item] = show_read[item][0]
+        for item in data:
+            show_read[item] = data[item]
+        show = util.all_shows(database_file, table_name)
+        x = show.index[show['name'] == read['name'][0]].tolist()[0]
+        show.loc[x] = show_read
+        df = util.write_sql(show, database_file, table_name)
+        if df == Status.SUCCESS:
+            read, length = util.read_show(database_file, table_name, str(id))
+            return read
     except Exception as e:
         util.debug_exception(e, suppress=True)
         return Status.FAIL
